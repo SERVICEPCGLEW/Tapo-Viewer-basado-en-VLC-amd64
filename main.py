@@ -390,7 +390,6 @@ class TapoViewer(QMainWindow):
         return f"rtsp://{ip}:554{path}"
 
     def play_stream(self, url):
-        self.player.stop()
         media = self.vlc_instance.media_new(url)
         self.player.set_media(media)
         self.player.play()
@@ -406,18 +405,15 @@ class TapoViewer(QMainWindow):
             self.check_schedule()
 
     def toggle_2k_mode(self):
+        self.init_vlc()
         if not self.is_2k_mode:
             self.is_2k_mode = True
-            self.size_grip.hide()
-            self.pin_btn.hide()
-            self.rec_btn.hide()
+            self.buttons_overlay.hide()
             self.play_stream(self.get_stream_url(True))
             self.showFullScreen()
         else:
             self.is_2k_mode = False
-            self.size_grip.show()
-            self.pin_btn.show()
-            self.rec_btn.show()
+            self.buttons_overlay.show()
             self.play_stream(self.get_stream_url(False))
             self.showNormal()
 
