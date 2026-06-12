@@ -197,7 +197,7 @@ class TapoViewer(QMainWindow):
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
 
-        self.play_stream(self.get_stream_url(False))
+        self.play_stream(self.get_stream_url(True))
         
         self.schedule_timer = QTimer(self)
         self.schedule_timer.timeout.connect(self.check_schedule)
@@ -397,18 +397,7 @@ class TapoViewer(QMainWindow):
     def play_stream(self, url):
         if hasattr(self, 'player') and self.player is not None:
             self.player.stop()
-        
-        QTimer.singleShot(1500, lambda: self._delayed_play(url))
-        
-    def _delayed_play(self, url):
-        if hasattr(self, 'player') and self.player is not None:
-            self.player.release()
             
-        self.player = self.vlc_instance.media_player_new()
-        self.player.set_hwnd(int(self.video_frame.winId()))
-        self.player.video_set_mouse_input(False)
-        self.player.video_set_key_input(False)
-        
         media = self.vlc_instance.media_new(url)
         self.player.set_media(media)
         self.player.play()
@@ -419,7 +408,7 @@ class TapoViewer(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # Restart stream with new settings
             self.init_vlc()
-            url = self.get_stream_url(self.is_2k_mode)
+            url = self.get_stream_url(True)
             self.play_stream(url)
             self.check_schedule()
 
@@ -428,12 +417,10 @@ class TapoViewer(QMainWindow):
             self.is_2k_mode = True
             self.overlay.hide()
             self.showFullScreen()
-            QTimer.singleShot(100, lambda: self.play_stream(self.get_stream_url(True)))
         else:
             self.is_2k_mode = False
             self.showNormal()
             self.overlay.show()
-            QTimer.singleShot(100, lambda: self.play_stream(self.get_stream_url(False)))
 
     def toggle_visibility(self):
         if self.isVisible():
