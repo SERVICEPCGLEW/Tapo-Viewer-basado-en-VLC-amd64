@@ -402,6 +402,16 @@ class TapoViewer(QMainWindow):
         QTimer.singleShot(1500, lambda: self._delayed_play(url))
         
     def _delayed_play(self, url):
+        # Create a fresh player from the existing instance and re-bind HWND
+        # This is vital because showFullScreen() can detach the DirectX surface from the old player
+        if hasattr(self, 'player') and self.player is not None:
+            self.player.release()
+            
+        self.player = self.vlc_instance.media_player_new()
+        self.player.set_hwnd(int(self.video_frame.winId()))
+        self.player.video_set_mouse_input(False)
+        self.player.video_set_key_input(False)
+        
         media = self.vlc_instance.media_new(url)
         self.player.set_media(media)
         self.player.play()
