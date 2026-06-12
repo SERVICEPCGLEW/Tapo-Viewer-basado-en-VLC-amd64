@@ -89,6 +89,18 @@ class ButtonsOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.main_window = main_window
 
+    def mousePressEvent(self, event):
+        self.main_window.mousePressEvent(event)
+        
+    def mouseMoveEvent(self, event):
+        self.main_window.mouseMoveEvent(event)
+        
+    def mouseReleaseEvent(self, event):
+        self.main_window.mouseReleaseEvent(event)
+        
+    def mouseDoubleClickEvent(self, event):
+        self.main_window.mouseDoubleClickEvent(event)
+
 class TapoViewer(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -368,6 +380,8 @@ class TapoViewer(QMainWindow):
         
     def get_stream_url(self, is_2k):
         ip = self.settings.value("rtsp_ip", "192.168.1.xxx")
+        user = self.settings.value("rtsp_user", "admin")
+        pwd = self.settings.value("rtsp_pwd", "")
         if is_2k:
             path = self.settings.value("stream_1_path", "/stream1")
         else:
@@ -375,9 +389,10 @@ class TapoViewer(QMainWindow):
         # Ensure path starts with /
         if not path.startswith("/"):
             path = "/" + path
-        return f"rtsp://{ip}:554{path}"
+        return f"rtsp://{user}:{pwd}@{ip}:554{path}"
 
     def play_stream(self, url):
+        self.player.stop()
         media = self.vlc_instance.media_new(url)
         self.player.set_media(media)
         self.player.play()
