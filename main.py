@@ -220,7 +220,7 @@ class TapoViewer(QMainWindow):
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self.toggle_2k_mode()
+            QTimer.singleShot(0, self.toggle_2k_mode)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
