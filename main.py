@@ -1,10 +1,12 @@
 import sys
 import os
 import winreg
+import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QLabel, QSystemTrayIcon, QMenu, QFrame, QSizeGrip,
-                             QPushButton, QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QMessageBox)
-from PyQt6.QtCore import Qt, QPoint, QSettings, QSize
+                             QPushButton, QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QMessageBox,
+                             QCheckBox, QComboBox, QTimeEdit, QGraphicsColorizeEffect)
+from PyQt6.QtCore import Qt, QPoint, QSettings, QSize, QTimer, QTime
 from PyQt6.QtGui import QIcon, QAction, QFont, QGuiApplication
 import vlc
 
@@ -25,11 +27,39 @@ class ConfigDialog(QDialog):
         self.path2k_input = QLineEdit(self.settings.value("stream_1_path", "/stream1"))
         self.path360_input = QLineEdit(self.settings.value("stream_2_path", "/stream2"))
         
+        default_dir = os.path.join(os.path.expanduser("~"), "Videos", "TapoRecords")
+        self.record_dir_input = QLineEdit(self.settings.value("record_dir", default_dir))
+        
+        self.record_quality = QComboBox()
+        self.record_quality.addItem("Baja (360p) - Nativa", "stream2")
+        self.record_quality.addItem("Media Baja (720p) - Comprimida", "stream1_720p")
+        self.record_quality.addItem("Media Alta (1080p) - Comprimida", "stream1_1080p")
+        self.record_quality.addItem("Máxima (Original 2K/1080p) - Nativa", "stream1")
+        
+        quality_idx = self.settings.value("record_quality_idx", 0, type=int)
+        self.record_quality.setCurrentIndex(quality_idx)
+        
+        self.schedule_checkbox = QCheckBox("Activar Grabación Programada")
+        self.schedule_checkbox.setChecked(self.settings.value("schedule_enabled", False, type=bool))
+        
+        self.time_start = QTimeEdit()
+        self.time_start.setDisplayFormat("HH:mm")
+        self.time_start.setTime(self.settings.value("schedule_start", QTime(8, 0), type=QTime))
+        
+        self.time_end = QTimeEdit()
+        self.time_end.setDisplayFormat("HH:mm")
+        self.time_end.setTime(self.settings.value("schedule_end", QTime(18, 0), type=QTime))
+        
         form_layout.addRow("IP / Hostname:", self.ip_input)
         form_layout.addRow("Usuario RTSP:", self.user_input)
         form_layout.addRow("Contraseña RTSP:", self.pwd_input)
         form_layout.addRow("Ruta Alta Calidad (2K):", self.path2k_input)
         form_layout.addRow("Ruta Baja Calidad (360p):", self.path360_input)
+        form_layout.addRow("Carpeta de Grabaciones:", self.record_dir_input)
+        form_layout.addRow("Calidad de Grabación:", self.record_quality)
+        form_layout.addRow("", self.schedule_checkbox)
+        form_layout.addRow("Hora de Inicio:", self.time_start)
+        form_layout.addRow("Hora de Fin:", self.time_end)
         
         layout.addLayout(form_layout)
         
@@ -44,7 +74,20 @@ class ConfigDialog(QDialog):
         self.settings.setValue("rtsp_pwd", self.pwd_input.text().strip())
         self.settings.setValue("stream_1_path", self.path2k_input.text().strip())
         self.settings.setValue("stream_2_path", self.path360_input.text().strip())
+        
+        self.settings.setValue("record_dir", self.record_dir_input.text().strip())
+        self.settings.setValue("record_quality_idx", self.record_quality.currentIndex())
+        self.settings.setValue("schedule_enabled", self.schedule_checkbox.isChecked())
+        self.settings.setValue("schedule_start", self.time_start.time())
+        self.settings.setValue("schedule_end", self.time_end.time())
+        
         self.accept()
+
+class ButtonsOverlay(QWidget):
+    def __init__(self, main_window):
+        super().__init__(main_window, Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.main_window = main_window
 
 class TapoViewer(QMainWindow):
     def __init__(self):
@@ -73,11 +116,32 @@ class TapoViewer(QMainWindow):
         self.video_frame.setStyleSheet("background-color: black;")
         self.layout.addWidget(self.video_frame)
 
-        self.pin_btn = QPushButton("📌", self.central_widget)
+        self.overlay = ButtonsOverlay(self)
+
+        self.pin_btn = QPushButton(self.overlay)
         self.pin_btn.setFixedSize(30, 30)
         self.pin_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.pin_btn.clicked.connect(self.toggle_always_on_top)
+
+        self.pin_layout = QVBoxLayout(self.pin_btn)
+        self.pin_layout.setContentsMargins(0, 0, 0, 0)
+        self.pin_label = QLabel("📌")
+        self.pin_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pin_label.setStyleSheet("background-color: transparent; font-size: 16px;")
+        self.pin_layout.addWidget(self.pin_label)
+
         self.update_pin_style()
+        
+        self.is_recording = False
+        self.is_auto_recording = False
+        self.record_player = None
+        self.record_vlc_instance = None
+        
+        self.rec_btn = QPushButton("REC", self.overlay)
+        self.rec_btn.setFixedSize(50, 30)
+        self.rec_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.rec_btn.clicked.connect(self.toggle_recording)
+        self.update_rec_style()
 
         self.size_grip = QSizeGrip(self.central_widget)
         self.size_grip.setStyleSheet("background-color: rgba(255, 255, 255, 50); width: 15px; height: 15px;")
@@ -122,6 +186,11 @@ class TapoViewer(QMainWindow):
         self.tray_icon.show()
 
         self.play_stream(self.get_stream_url(False))
+        
+        self.schedule_timer = QTimer(self)
+        self.schedule_timer.timeout.connect(self.check_schedule)
+        self.schedule_timer.start(60000)
+        QTimer.singleShot(1000, self.check_schedule)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -145,8 +214,20 @@ class TapoViewer(QMainWindow):
         super().resizeEvent(event)
         if hasattr(self, 'size_grip'):
             self.size_grip.move(self.width() - self.size_grip.width(), self.height() - self.size_grip.height())
-        if hasattr(self, 'pin_btn'):
-            self.pin_btn.move(self.width() - self.pin_btn.width() - 5, 5)
+        if hasattr(self, 'overlay') and hasattr(self, 'pin_btn') and hasattr(self, 'rec_btn'):
+            self.overlay.setGeometry(self.geometry())
+            self.pin_btn.move(self.overlay.width() - self.pin_btn.width() - 5, 5)
+            self.rec_btn.move(self.overlay.width() - self.pin_btn.width() - self.rec_btn.width() - 15, 5)
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if hasattr(self, 'overlay'):
+            self.overlay.setGeometry(self.geometry())
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if hasattr(self, 'overlay'):
+            self.overlay.show()
 
     def update_window_flags(self):
         flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
@@ -157,10 +238,13 @@ class TapoViewer(QMainWindow):
             self.show()
 
     def update_pin_style(self):
+        effect = QGraphicsColorizeEffect(self.pin_label)
         if self.is_always_on_top:
-            self.pin_btn.setStyleSheet("background-color: rgba(255, 0, 0, 150); color: white; border-radius: 15px; font-size: 16px;")
+            effect.setColor(Qt.GlobalColor.red)
         else:
-            self.pin_btn.setStyleSheet("background-color: rgba(255, 255, 255, 100); color: black; border-radius: 15px; font-size: 16px;")
+            effect.setColor(Qt.GlobalColor.white)
+        self.pin_label.setGraphicsEffect(effect)
+        self.pin_btn.setStyleSheet("background-color: rgba(255, 255, 255, 100); border-radius: 15px; border: none;")
 
     def toggle_always_on_top(self):
         self.is_always_on_top = not self.is_always_on_top
@@ -174,6 +258,93 @@ class TapoViewer(QMainWindow):
         self.settings.setValue("always_on_top", self.is_always_on_top)
         self.update_pin_style()
         self.update_window_flags()
+
+    def update_rec_style(self):
+        if self.is_recording:
+            self.rec_btn.setStyleSheet("background-color: rgba(255, 0, 0, 180); color: white; border-radius: 15px; font-weight: bold; border: none;")
+        else:
+            self.rec_btn.setStyleSheet("background-color: rgba(128, 128, 128, 150); color: white; border-radius: 15px; font-weight: bold; border: none;")
+
+    def check_schedule(self):
+        if not self.settings.value("schedule_enabled", False, type=bool):
+            if self.is_recording and self.is_auto_recording:
+                self.stop_recording()
+            return
+            
+        start_time = self.settings.value("schedule_start", QTime(8, 0), type=QTime)
+        end_time = self.settings.value("schedule_end", QTime(18, 0), type=QTime)
+        current_time = QTime.currentTime()
+        
+        is_in_range = False
+        if start_time < end_time:
+            is_in_range = start_time <= current_time <= end_time
+        else:
+            is_in_range = current_time >= start_time or current_time <= end_time
+            
+        if is_in_range and not self.is_recording:
+            self.is_auto_recording = True
+            self.start_recording()
+        elif not is_in_range and self.is_recording and self.is_auto_recording:
+            self.stop_recording()
+            self.is_auto_recording = False
+
+    def toggle_recording(self):
+        self.is_auto_recording = False 
+        if self.is_recording:
+            self.stop_recording()
+        else:
+            self.start_recording()
+
+    def start_recording(self):
+        if self.is_recording: return
+        
+        default_dir = os.path.join(os.path.expanduser("~"), "Videos", "TapoRecords")
+        rec_dir = self.settings.value("record_dir", default_dir)
+        os.makedirs(rec_dir, exist_ok=True)
+        
+        now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"Tapo_{now}.mp4"
+        filepath = os.path.join(rec_dir, filename)
+        
+        quality_idx = self.settings.value("record_quality_idx", 0, type=int)
+        qualities = ["stream2", "stream1_720p", "stream1_1080p", "stream1"]
+        quality = qualities[quality_idx] if 0 <= quality_idx < len(qualities) else "stream1"
+        ip = self.settings.value("rtsp_ip", "192.168.1.xxx")
+        user = self.settings.value("rtsp_user", "admin")
+        pwd = self.settings.value("rtsp_pwd", "")
+        
+        self.record_vlc_instance = vlc.Instance("--avcodec-hw=any", "--drop-late-frames")
+        self.record_player = self.record_vlc_instance.media_player_new()
+        
+        if quality == "stream1_720p":
+            sout = f"#transcode{{vcodec=h264,vb=1500,scale=Auto,width=1280,height=720}}:std{{access=file,mux=mp4,dst='{filepath}'}}"
+            stream_url = f"rtsp://{user}:{pwd}@{ip}:554/stream1"
+        elif quality == "stream1_1080p":
+            sout = f"#transcode{{vcodec=h264,vb=3000,scale=Auto,width=1920,height=1080}}:std{{access=file,mux=mp4,dst='{filepath}'}}"
+            stream_url = f"rtsp://{user}:{pwd}@{ip}:554/stream1"
+        else:
+            sout = f"#std{{access=file,mux=mp4,dst='{filepath}'}}"
+            stream_url = f"rtsp://{user}:{pwd}@{ip}:554/{quality}"
+
+        self.record_player.set_mrl(stream_url, f":sout={sout}")
+        self.record_player.play()
+        
+        self.is_recording = True
+        self.update_rec_style()
+
+    def stop_recording(self):
+        if not self.is_recording: return
+        
+        if self.record_player:
+            self.record_player.stop()
+            self.record_player.release()
+            self.record_player = None
+        if self.record_vlc_instance:
+            self.record_vlc_instance.release()
+            self.record_vlc_instance = None
+            
+        self.is_recording = False
+        self.update_rec_style()
 
     def init_vlc(self):
         user = self.settings.value("rtsp_user", "admin")
@@ -219,18 +390,21 @@ class TapoViewer(QMainWindow):
             self.init_vlc()
             url = self.get_stream_url(self.is_2k_mode)
             self.play_stream(url)
+            self.check_schedule()
 
     def toggle_2k_mode(self):
         if not self.is_2k_mode:
             self.is_2k_mode = True
             self.size_grip.hide()
             self.pin_btn.hide()
+            self.rec_btn.hide()
             self.play_stream(self.get_stream_url(True))
             self.showFullScreen()
         else:
             self.is_2k_mode = False
             self.size_grip.show()
             self.pin_btn.show()
+            self.rec_btn.show()
             self.play_stream(self.get_stream_url(False))
             self.showNormal()
 
@@ -276,6 +450,8 @@ class TapoViewer(QMainWindow):
         super().closeEvent(event)
 
     def quit_app(self):
+        if self.is_recording:
+            self.stop_recording()
         self.player.stop()
         self.close()
         QApplication.quit()
