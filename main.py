@@ -364,8 +364,6 @@ class TapoViewer(QMainWindow):
         
         if hasattr(self, 'player') and self.player is not None:
             self.player.stop()
-            self.player.release()
-            self.vlc_instance.release()
 
         self.vlc_instance = vlc.Instance(
             "--avcodec-hw=any",
@@ -390,6 +388,12 @@ class TapoViewer(QMainWindow):
         return f"rtsp://{ip}:554{path}"
 
     def play_stream(self, url):
+        self.player.stop()
+        # Use QTimer to delay the start of the new stream by 600ms
+        # This gives the Tapo camera enough time to close the old RTSP socket
+        QTimer.singleShot(600, lambda: self._delayed_play(url))
+        
+    def _delayed_play(self, url):
         media = self.vlc_instance.media_new(url)
         self.player.set_media(media)
         self.player.play()
@@ -405,7 +409,6 @@ class TapoViewer(QMainWindow):
             self.check_schedule()
 
     def toggle_2k_mode(self):
-        self.init_vlc()
         if not self.is_2k_mode:
             self.is_2k_mode = True
             self.buttons_overlay.hide()
