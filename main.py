@@ -347,7 +347,8 @@ class TapoViewer(QMainWindow):
         format_str = self.settings.value("record_format", "ts")
         now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         filename = f"Tapo_{now}.{format_str}"
-        filepath = os.path.join(rec_dir, filename)
+        filepath = os.path.join(rec_dir, filename).replace('\\', '/')
+        
         
         quality = self.settings.value("record_quality", "stream1")
         
@@ -358,6 +359,7 @@ class TapoViewer(QMainWindow):
         vlc_args = [
             "--avcodec-hw=any", 
             "--drop-late-frames",
+            "--rtsp-tcp",
             "--network-caching=1000"
         ]
         
@@ -395,9 +397,16 @@ class TapoViewer(QMainWindow):
         if "stream1" in stream_url and self.is_2k_mode:
             QMessageBox.warning(self, "Límite de la Cámara", "Las cámaras Tapo no permiten visualizar y grabar la máxima calidad (2K) al mismo tiempo en el mismo equipo.\n\nPara poder grabar sin fallos (archivos de 0 KB), el visor en vivo cambiará automáticamente a calidad baja (360p).")
             self.toggle_visibility()
-            import time
-            time.sleep(1) # Dale 1 segundo a la camara para liberar el socket de stream1
+        import time
+        time.sleep(1) # Dale 1 segundo a la camara para liberar el socket de stream1
             
+        try:
+            with open(os.path.join(rec_dir, "debug.log"), "w") as f:
+                f.write(f"stream_url: {stream_url}\n")
+                f.write(f"sout: {sout}\n")
+        except:
+            pass
+
         self.record_player.set_mrl(stream_url, f":sout={sout}")
         self.record_player.play()
         
