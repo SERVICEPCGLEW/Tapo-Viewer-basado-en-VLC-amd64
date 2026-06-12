@@ -412,13 +412,13 @@ class TapoViewer(QMainWindow):
         if not self.is_2k_mode:
             self.is_2k_mode = True
             self.buttons_overlay.hide()
-            self.play_stream(self.get_stream_url(True))
             self.showFullScreen()
+            QTimer.singleShot(100, lambda: self.play_stream(self.get_stream_url(True)))
         else:
             self.is_2k_mode = False
-            self.buttons_overlay.show()
-            self.play_stream(self.get_stream_url(False))
             self.showNormal()
+            self.buttons_overlay.show()
+            QTimer.singleShot(100, lambda: self.play_stream(self.get_stream_url(False)))
 
     def toggle_visibility(self):
         if self.isVisible():
