@@ -370,14 +370,27 @@ class TapoViewer(QMainWindow):
         self.record_vlc_instance = vlc.Instance(*vlc_args)
         self.record_player = self.record_vlc_instance.media_player_new()
         
+        audio_sout = "acodec=mp3,ab=128,channels=2,samplerate=44100" if audio_enabled else ""
+        
         if quality == "stream1_720p":
-            sout = f"#transcode{{vcodec=h264,vb=1500,scale=Auto,width=1280,height=720}}:std{{access=file,mux={format_str},dst='{filepath}'}}"
+            video_sout = "vcodec=h264,vb=1500,scale=Auto,width=1280,height=720"
+            if audio_sout:
+                sout = f"#transcode{{{video_sout},{audio_sout}}}:std{{access=file,mux={format_str},dst='{filepath}'}}"
+            else:
+                sout = f"#transcode{{{video_sout}}}:std{{access=file,mux={format_str},dst='{filepath}'}}"
             stream_url = f"rtsp://{user}:{pwd}@{ip}:554/stream1"
         elif quality == "stream1_1080p":
-            sout = f"#transcode{{vcodec=h264,vb=3000,scale=Auto,width=1920,height=1080}}:std{{access=file,mux={format_str},dst='{filepath}'}}"
+            video_sout = "vcodec=h264,vb=3000,scale=Auto,width=1920,height=1080"
+            if audio_sout:
+                sout = f"#transcode{{{video_sout},{audio_sout}}}:std{{access=file,mux={format_str},dst='{filepath}'}}"
+            else:
+                sout = f"#transcode{{{video_sout}}}:std{{access=file,mux={format_str},dst='{filepath}'}}"
             stream_url = f"rtsp://{user}:{pwd}@{ip}:554/stream1"
         else:
-            sout = f"#std{{access=file,mux={format_str},dst='{filepath}'}}"
+            if audio_sout:
+                sout = f"#transcode{{{audio_sout}}}:std{{access=file,mux={format_str},dst='{filepath}'}}"
+            else:
+                sout = f"#std{{access=file,mux={format_str},dst='{filepath}'}}"
             stream_url = f"rtsp://{user}:{pwd}@{ip}:554/{quality}"
 
         self.record_player.set_mrl(stream_url, f":sout={sout}")
