@@ -227,7 +227,7 @@ class TapoViewer(QMainWindow):
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
 
-        self.play_stream(self.get_stream_url(True))
+        self.play_stream(self.get_stream_url(self.is_2k_mode))
         
         self.schedule_timer = QTimer(self)
         self.schedule_timer.timeout.connect(self.check_schedule)
@@ -472,7 +472,7 @@ class TapoViewer(QMainWindow):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             # Restart stream with new settings
             self.init_vlc()
-            url = self.get_stream_url(True)
+            url = self.get_stream_url(self.is_2k_mode)
             self.play_stream(url)
             self.check_schedule()
 
