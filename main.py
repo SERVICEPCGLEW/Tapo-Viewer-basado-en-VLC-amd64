@@ -395,23 +395,10 @@ class TapoViewer(QMainWindow):
         return f"rtsp://{ip}:554{path}"
 
     def play_stream(self, url):
+        self.progress_bar.show()
         if hasattr(self, 'player') and self.player is not None:
             self.player.stop()
-        # Use QTimer to delay the start of the new stream by 1500ms
-        # This gives the Tapo camera enough time to close the old RTSP socket
-        QTimer.singleShot(1500, lambda: self._delayed_play(url))
-        
-    def _delayed_play(self, url):
-        # Create a fresh player from the existing instance and re-bind HWND
-        # This is vital because showFullScreen() can detach the DirectX surface from the old player
-        if hasattr(self, 'player') and self.player is not None:
-            self.player.release()
             
-        self.player = self.vlc_instance.media_player_new()
-        self.player.set_hwnd(int(self.video_frame.winId()))
-        self.player.video_set_mouse_input(False)
-        self.player.video_set_key_input(False)
-        
         media = self.vlc_instance.media_new(url)
         self.player.set_media(media)
         self.player.play()
@@ -430,13 +417,13 @@ class TapoViewer(QMainWindow):
         if not self.is_2k_mode:
             self.is_2k_mode = True
             self.overlay.hide()
+            self.play_stream(self.get_stream_url(True))
             self.showFullScreen()
-            QTimer.singleShot(100, lambda: self.play_stream(self.get_stream_url(True)))
         else:
             self.is_2k_mode = False
             self.showNormal()
             self.overlay.show()
-            QTimer.singleShot(100, lambda: self.play_stream(self.get_stream_url(False)))
+            self.play_stream(self.get_stream_url(False))
 
     def toggle_visibility(self):
         if self.isVisible():
