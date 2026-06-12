@@ -328,13 +328,13 @@ class TapoViewer(QMainWindow):
         
         if not hasattr(self, 'record_vlc_instance'):
             vlc_args = [
-                '--quiet',
-                '--no-xlib',
-                '--drop-late-frames',
-                '--skip-frames',
-                '--no-sout-audio' # Disable audio output for recording to allow TS format with Tapo
+                "--avcodec-hw=any", 
+                "--drop-late-frames",
+                "--rtsp-tcp",
+                "--network-caching=500",
+                "--no-sout-audio"
             ]
-            self.record_vlc_instance = vlc.Instance(vlc_args)
+            self.record_vlc_instance = vlc.Instance(*vlc_args)
         
         self.record_player = self.record_vlc_instance.media_player_new()
         
