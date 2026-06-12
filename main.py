@@ -3,12 +3,80 @@ import os
 import winreg
 import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QLabel, QSystemTrayIcon, QMenu, QFrame, QSizeGrip,
-                             QPushButton, QDialog, QFormLayout, QLineEdit, QDialogButtonBox, QMessageBox,
-                             QCheckBox, QComboBox, QTimeEdit, QGraphicsColorizeEffect, QTabWidget)
-from PyQt6.QtCore import Qt, QPoint, QSettings, QSize, QTimer, QTime
-from PyQt6.QtGui import QIcon, QAction, QFont, QGuiApplication
+                             QHBoxLayout, QPushButton, QLabel, QSystemTrayIcon, QMenu, QDialog, QLineEdit, QFormLayout, 
+                             QCheckBox, QComboBox, QTimeEdit, QGraphicsColorizeEffect, QTabWidget, QFrame, QSizeGrip, QDialogButtonBox, QMessageBox)
+from PyQt6.QtCore import Qt, QPoint, QSettings, QSize, QTimer, QTime, QUrl
+from PyQt6.QtGui import QIcon, QAction, QFont, QGuiApplication, QDesktopServices, QPixmap
 import vlc
+
+class AboutDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Acerca de Tapo Viewer')
+        self.setFixedSize(400, 500)
+        self.setStyleSheet('''
+            QDialog { background-color: #1e1e1e; color: #ffffff; }
+            QLabel { color: #ffffff; }
+            QPushButton { background-color: #333333; color: white; border: 1px solid #555555; padding: 6px 15px; border-radius: 4px; }
+            QPushButton:hover { background-color: #444444; }
+            QPushButton#donateBtn { background-color: #FF7100; color: white; font-weight: bold; border: none; padding: 12px 20px; border-radius: 6px; font-size: 14px; }
+            QPushButton#donateBtn:hover { background-color: #FF8822; }
+            QFrame#line { background-color: #444444; }
+        ''')
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Logo and Title
+        title_layout = QHBoxLayout()
+        logo_label = QLabel()
+        logo_pixmap = QPixmap('icon.png').scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        logo_label.setPixmap(logo_pixmap)
+        title_layout.addWidget(logo_label)
+        
+        title_text = QLabel('<b>Tapo Viewer</b><br>v3.0')
+        title_font = QFont()
+        title_font.setPointSize(16)
+        title_text.setFont(title_font)
+        title_layout.addWidget(title_text)
+        title_layout.addStretch()
+        layout.addLayout(title_layout)
+        
+        desc = QLabel('Un visor ligero y grabador en segundo plano para cámaras Tapo.')
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+        
+        line = QFrame()
+        line.setObjectName('line')
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFixedHeight(1)
+        layout.addWidget(line)
+        
+        social_label = QLabel('<b>Sígueme en mis redes:</b>')
+        layout.addWidget(social_label)
+        
+        social_layout = QVBoxLayout()
+        social_layout.setSpacing(8)
+        links = [
+            ('GitHub', 'https://github.com/SERVICEPCGLEW'),
+            ('Instagram', 'https://www.instagram.com/ServicePCGlew/'),
+            ('Facebook', 'https://www.facebook.com/ServicePCGlew/'),
+            ('WhatsApp', 'https://wa.me/542224576362'),
+            ('Sitio Web', 'https://servicepcglew.pages.dev/')
+        ]
+        for name, url in links:
+            btn = QPushButton(name)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda checked, u=url: QDesktopServices.openUrl(QUrl(u)))
+            social_layout.addWidget(btn)
+        layout.addLayout(social_layout)
+        layout.addStretch()
+        
+        donate_btn = QPushButton('👍 Invítame un Matecito (Donate)')
+        donate_btn.setObjectName('donateBtn')
+        donate_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        donate_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl('https://www.matecito.co/servicepcglew')))
+        layout.addWidget(donate_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
 class ConfigDialog(QDialog):
     def __init__(self, parent=None):
@@ -220,6 +288,12 @@ class TapoViewer(QMainWindow):
         config_action.triggered.connect(self.open_config)
         tray_menu.addAction(config_action)
         
+        about_action = QAction("Acerca de...", self)
+        about_action.triggered.connect(self.show_about)
+        tray_menu.addAction(about_action)
+        
+        tray_menu.addSeparator()
+        
         quit_action = QAction("Cerrar", self)
         quit_action.triggered.connect(self.quit_app)
         tray_menu.addAction(quit_action)
@@ -393,7 +467,6 @@ class TapoViewer(QMainWindow):
                 sout = f"#std{{access=file,mux={format_str},dst='{filepath}'}}"
             stream_url = f"rtsp://{user}:{pwd}@{ip}:554/{quality}"
 
-        from PyQt6.QtWidgets import QMessageBox
         if "stream1" in stream_url and self.is_2k_mode:
             QMessageBox.warning(self, "Límite de la Cámara", "Las cámaras Tapo no permiten visualizar y grabar la máxima calidad (2K) al mismo tiempo en el mismo equipo.\n\nPara poder grabar sin fallos (archivos de 0 KB), el visor en vivo cambiará automáticamente a calidad baja (360p).")
             self.toggle_visibility()
@@ -475,6 +548,10 @@ class TapoViewer(QMainWindow):
             url = self.get_stream_url(self.is_2k_mode)
             self.play_stream(url)
             self.check_schedule()
+
+    def show_about(self):
+        dialog = AboutDialog(self)
+        dialog.exec()
 
     def toggle_2k_mode(self):
         if not self.is_2k_mode:
