@@ -325,7 +325,12 @@ class TapoViewer(QMainWindow):
         user = self.settings.value("rtsp_user", "admin")
         pwd = self.settings.value("rtsp_pwd", "")
         
-        self.record_vlc_instance = vlc.Instance("--avcodec-hw=any", "--drop-late-frames")
+        self.record_vlc_instance = vlc.Instance(
+            "--avcodec-hw=any", 
+            "--drop-late-frames",
+            "--rtsp-tcp",
+            "--network-caching=500"
+        )
         self.record_player = self.record_vlc_instance.media_player_new()
         
         if quality == "stream1_720p":
@@ -368,6 +373,8 @@ class TapoViewer(QMainWindow):
         self.vlc_instance = vlc.Instance(
             "--avcodec-hw=any",
             "--drop-late-frames",
+            "--rtsp-tcp",
+            "--network-caching=500",
             f"--rtsp-user={user}",
             f"--rtsp-pwd={pwd}"
         )
