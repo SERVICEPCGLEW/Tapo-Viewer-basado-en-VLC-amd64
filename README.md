@@ -48,7 +48,7 @@ Si prefieres generar un ejecutable .exe portátil que no requiera abrir la conso
 - **Mover la ventana**: Arrastra el video con el clic izquierdo del mouse para reubicarlo.
 - **Grabar Video**: Haz clic en el botón REC o programa el temporizador desde los ajustes.
 - **Ocultar/Ajustes**: Busca el ícono negro de la cámara en la bandeja de iconos (cerca de la hora en Windows). Haz clic derecho para ver las opciones de configuración.
-- **Conectar tu cámara**: Ve a "Configuración" e introduce la IP local de tu cámara Tapo (ej. 192.168.1.41) y las credenciales RTSP.
+- **Conectar tu cámara**: Ve a "Configuración" e introduce la IP local de tu cámara Tapo (ej. 192.168.1.xxx) y las credenciales RTSP.
 
 ## Tecnologías Utilizadas
 - **PyQt6**: Creación de interfaz transparente sin bordes, overlay windows y manejo de eventos.
