@@ -395,7 +395,6 @@ class TapoViewer(QMainWindow):
         return f"rtsp://{ip}:554{path}"
 
     def play_stream(self, url):
-        self.progress_bar.show()
         if hasattr(self, 'player') and self.player is not None:
             self.player.stop()
             
