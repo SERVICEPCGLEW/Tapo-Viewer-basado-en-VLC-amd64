@@ -359,8 +359,7 @@ class TapoViewer(QMainWindow):
         vlc_args = [
             "--avcodec-hw=any", 
             "--drop-late-frames",
-            "--rtsp-tcp",
-            "--network-caching=500"
+            "--network-caching=1000"
         ]
         
         audio_enabled = self.settings.value("record_audio", False, type=bool)
